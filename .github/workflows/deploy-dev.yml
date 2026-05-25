@@ -1,0 +1,82 @@
+name: Deploy to Cloud Run - Dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to deploy"
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      branch:
+        required: false
+        type: string
+
+env:
+  PROJECT_ID: ${{ secrets.PROJECT_ID }}
+  REGION: us-west1
+  SERVICE_NAME: finanza-ai-dev
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    if: vars.DEPLOY_AI_STUDIO != 'true'
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch || github.ref }}
+          fetch-depth: 0
+
+      - name: Get branch name
+        id: branch
+        run: |
+          BRANCH_NAME="${{ inputs.branch || github.ref_name }}"
+          SAFE_BRANCH=$(echo "$BRANCH_NAME" | sed 's/\//-/g' | tr '[:upper:]' '[:lower:]')
+          echo "name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "safe=$SAFE_BRANCH" >> $GITHUB_OUTPUT
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Create .env
+        run: |
+          cat > .env << EOF
+          VITE_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          EOF
+
+      - name: Authenticate GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Create SA key file
+        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > ./service-account-key.json
+
+      - name: Deploy
+        run: |
+          chmod +x ./scripts/deploy-dev.sh
+          ./scripts/deploy-dev.sh
+
+      - name: Cleanup
+        if: always()
+        run: rm -f ./service-account-key.json .env
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "## Deploy Dev OK" >> $GITHUB_STEP_SUMMARY
+          echo "Branch: ${{ steps.branch.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "Service: ${{ env.SERVICE_NAME }}" >> $GITHUB_STEP_SUMMARY

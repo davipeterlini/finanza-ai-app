@@ -1,0 +1,51 @@
+name: Deploy to Cloud Run - Production
+
+on:
+  push:
+    tags: ['v*']
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+env:
+  PROJECT_ID: ${{ secrets.PROJECT_ID }}
+  REGION: us-west1
+  SERVICE_NAME: finanza-ai-prd
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20.x', cache: 'npm' }
+      - run: npm ci
+      - run: npm run test:run
+      - run: npm run build
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create .env
+        run: |
+          cat > .env << EOF
+          VITE_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          EOF
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+        with: { project_id: ${{ env.PROJECT_ID }} }
+      - run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > ./service-account-key.json
+      - run: chmod +x ./scripts/deploy-prd.sh && ./scripts/deploy-prd.sh
+      - if: always()
+        run: rm -f ./service-account-key.json .env

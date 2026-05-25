@@ -1,0 +1,51 @@
+name: Release Pipeline
+
+on:
+  push:
+    branches: ['release/*', 'release-*']
+  workflow_dispatch:
+    inputs:
+      deploy_to_prod:
+        description: 'Deploy to Production?'
+        type: boolean
+        default: false
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Extract version from branch
+        id: extract
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+          VERSION=$(echo "$BRANCH" | sed 's/release[\/\-_]//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+  test:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: 'npm' }
+      - run: npm ci && npm run test:run && npm run build
+
+  deploy-dev:
+    needs: test
+    uses: ./.github/workflows/deploy-dev.yml
+    secrets: inherit
+
+  deploy-prd:
+    needs: deploy-dev
+    if: ${{ inputs.deploy_to_prod == true }}
+    uses: ./.github/workflows/deploy-prd.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.validate.outputs.version }}

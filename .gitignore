@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+scripts/*.json
+scripts/.env*
+scripts/.env.gcp-setup
+scripts/service-account-key.json
+coverage/
+*.log
+.DS_Store
+.vite/
+.cache/
