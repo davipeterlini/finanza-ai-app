@@ -14,12 +14,12 @@ describe("Sidebar", () => {
   });
 
   it("calls onViewChange when clicking nav item", async () => {
+    const userEvent = await import("@testing-library/user-event");
     const mockOnViewChange = vi.fn();
     render(<Sidebar currentView="dashboard" onViewChange={mockOnViewChange} />);
 
-    // Click on transactions
     const transactionsBtn = screen.getByText("Transacoes");
-    transactionsBtn.click();
+    await userEvent.default.click(transactionsBtn);
 
     expect(mockOnViewChange).toHaveBeenCalledWith("transactions");
   });

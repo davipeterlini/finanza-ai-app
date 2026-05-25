@@ -2,14 +2,24 @@ import React from "react";
 import { render, RenderOptions } from "@testing-library/react";
 import { LanguageProvider } from "../../src/contexts/LanguageContext";
 import { ToastProvider } from "../../src/contexts/ToastContext";
-import { AuthProvider } from "../../src/contexts/AuthContext";
+
+// Mock AuthContext before importing
+vi.mock("../../src/contexts/AuthContext", () => ({
+  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
+  useAuth: () => ({
+    user: { id: "1", name: "Test User", email: "test@example.com", avatar: "https://example.com/avatar.jpg" },
+    isLoading: false,
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+  }),
+}));
 
 // Providers that all components need
 const AllProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <LanguageProvider>
       <ToastProvider>
-        <AuthProvider>{children}</AuthProvider>
+        {children}
       </ToastProvider>
     </LanguageProvider>
   );
@@ -29,14 +39,4 @@ export const mockSignedInUser = {
   email: "test@example.com",
   avatar: "https://example.com/avatar.jpg",
   accessToken: "mock-token",
-};
-
-export const mockAuthContext = (overrides = {}) => {
-  vi.spyOn(AuthModule, "useAuth").mockReturnValue({
-    user: mockSignedInUser,
-    isLoading: false,
-    signIn: vi.fn(),
-    signOut: vi.fn(),
-    ...overrides,
-  });
 };
